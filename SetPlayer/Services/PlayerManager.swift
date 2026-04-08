@@ -34,6 +34,48 @@ final class PlayerManager {
     nonisolated deinit {
     }
 
+    // MARK: - Persistence
+
+    private static let savedItemIdKey = "PlayerManager.savedItemId"
+    private static let savedTimeKey = "PlayerManager.savedTime"
+
+    func saveState() {
+        guard let item = currentItem else { return }
+        UserDefaults.standard.set(item.id, forKey: Self.savedItemIdKey)
+        UserDefaults.standard.set(currentTime, forKey: Self.savedTimeKey)
+    }
+
+    var savedItemId: String? {
+        UserDefaults.standard.string(forKey: Self.savedItemIdKey)
+    }
+
+    var savedTime: Double {
+        UserDefaults.standard.double(forKey: Self.savedTimeKey)
+    }
+
+    func restoreState(item: JellyfinItem, streamURL: URL) {
+        let savedTime = self.savedTime
+        play(item: item, streamURL: streamURL)
+
+        // Seek to saved position once ready
+        if savedTime > 0 {
+            let statusObs = player.currentItem?.observe(\.status) { [weak self] observed, _ in
+                guard observed.status == .readyToPlay else { return }
+                let time = CMTime(seconds: savedTime, preferredTimescale: 600)
+                Task { @MainActor in
+                    self?.player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+                    self?.player.pause()
+                    self?.isPlaying = false
+                }
+            }
+            // Keep a reference so it doesn't get deallocated
+            self.statusObservation = statusObs
+        } else {
+            player.pause()
+            isPlaying = false
+        }
+    }
+
     // MARK: - Playback
 
     func play(item: JellyfinItem, streamURL: URL) {
@@ -135,6 +177,10 @@ final class PlayerManager {
             guard let self else { return }
             self.currentTime = time.seconds
             self.updateCurrentChapter()
+            // Save state every 5 seconds
+            if Int(time.seconds) % 5 == 0 {
+                self.saveState()
+            }
         }
     }
 

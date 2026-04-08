@@ -1,11 +1,22 @@
 import Foundation
 
+enum SortOption: String, CaseIterable, Identifiable {
+    case recentFirst = "Recent First"
+    case oldestFirst = "Oldest First"
+    case nameAZ = "Name A-Z"
+    case nameZA = "Name Z-A"
+    case artistAZ = "Artist A-Z"
+
+    var id: String { rawValue }
+}
+
 @Observable @MainActor
 final class LibraryViewModel {
     var items: [JellyfinItem] = []
     var collections: [JellyfinCollection] = []
     var selectedCollection: JellyfinCollection?
     var searchText: String = ""
+    var sortOption: SortOption = .recentFirst
     var isLoading = false
     var error: String?
 
@@ -16,13 +27,18 @@ final class LibraryViewModel {
     }
 
     var filteredItems: [JellyfinItem] {
-        guard !searchText.isEmpty else { return items }
-        let query = searchText.lowercased()
-        return items.filter { item in
-            item.name.lowercased().contains(query)
-                || item.chapters.contains { $0.name.lowercased().contains(query) }
-                || item.tags.contains { $0.lowercased().contains(query) }
+        let base: [JellyfinItem]
+        if searchText.isEmpty {
+            base = items
+        } else {
+            let query = searchText.lowercased()
+            base = items.filter { item in
+                item.name.lowercased().contains(query)
+                    || item.chapters.contains { $0.name.lowercased().contains(query) }
+                    || item.tags.contains { $0.lowercased().contains(query) }
+            }
         }
+        return sorted(base)
     }
 
     var artists: [String] {
@@ -71,5 +87,26 @@ final class LibraryViewModel {
 
     func items(for year: Int) -> [JellyfinItem] {
         filteredItems.filter { $0.year == year }
+    }
+
+    // MARK: - Sorting
+
+    private func sorted(_ items: [JellyfinItem]) -> [JellyfinItem] {
+        switch sortOption {
+        case .recentFirst:
+            return items.sorted { ($0.year ?? 0) > ($1.year ?? 0) }
+        case .oldestFirst:
+            return items.sorted { ($0.year ?? 0) < ($1.year ?? 0) }
+        case .nameAZ:
+            return items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .nameZA:
+            return items.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedDescending }
+        case .artistAZ:
+            return items.sorted {
+                let cmp = $0.artist.localizedCaseInsensitiveCompare($1.artist)
+                if cmp == .orderedSame { return ($0.year ?? 0) > ($1.year ?? 0) }
+                return cmp == .orderedAscending
+            }
+        }
     }
 }

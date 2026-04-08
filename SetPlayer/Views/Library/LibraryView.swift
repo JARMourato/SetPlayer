@@ -15,9 +15,11 @@ struct LibraryView: View {
         var showVideo = false
     }
 
-    var body: some View {
-        @Bindable var vm = viewModel
+    private var vm: Bindable<LibraryViewModel> {
+        Bindable(viewModel)
+    }
 
+    var body: some View {
         Group {
             if playerBarState.showVideo {
                 ImmersiveVideoView(showVideo: $playerBarState.showVideo)
@@ -28,7 +30,7 @@ struct LibraryView: View {
                     } detail: {
                         mainContent
                     }
-                    .searchable(text: $vm.searchText, prompt: "Search sets or tracks...")
+                    .searchable(text: vm.searchText, prompt: "Search sets or tracks...")
 
                     BottomPlayerBar(showVideo: $playerBarState.showVideo)
                 }
@@ -36,6 +38,33 @@ struct LibraryView: View {
         }
         .task {
             await viewModel.loadLibrary()
+            // Restore last playing set
+            if let savedId = player.savedItemId,
+               let item = viewModel.items.first(where: { $0.id == savedId }),
+               let url = jellyfin.streamURL(for: item.id) {
+                player.restoreState(item: item, streamURL: url)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                HStack(spacing: 12) {
+                    Picker("Sort", selection: vm.sortOption) {
+                        ForEach(SortOption.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 140)
+
+                    Button {
+                        Task { await viewModel.loadLibrary() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .keyboardShortcut("r", modifiers: .command)
+                    .help("Refresh Library (⌘R)")
+                }
+            }
         }
     }
 
