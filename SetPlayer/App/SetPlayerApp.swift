@@ -99,6 +99,7 @@ extension EnvironmentValues {
 
 // MARK: - App Delegate
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let hide = UserDefaults.standard.object(forKey: "hideDockIcon") as? Bool ?? true
