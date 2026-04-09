@@ -4,6 +4,7 @@ import SwiftUI
 struct MiniPlayerView: View {
     @Environment(PlayerManager.self) private var player
     @Environment(JellyfinService.self) private var jellyfin
+    @Environment(\.openWindow) private var openWindow
 
     @State private var isHoveringProgress = false
     @State private var isScrubbing = false
@@ -364,8 +365,16 @@ struct MiniPlayerView: View {
     // MARK: - Helpers
 
     private func openMainWindow() {
-        if let delegate = NSApplication.shared.delegate as? AppDelegate {
-            delegate.showMainWindow()
+        // Try to show an existing hidden main window first
+        if let window = NSApplication.shared.windows.first(where: {
+            $0.canBecomeMain && !($0 is NSPanel) && $0.level == .normal
+        }) {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            // No window exists — create one via SwiftUI
+            openWindow(id: "main")
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

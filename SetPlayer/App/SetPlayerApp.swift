@@ -19,7 +19,7 @@ struct SetPlayerApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             LibraryView()
                 .environment(jellyfin)
                 .environment(playerManager)
@@ -27,9 +27,10 @@ struct SetPlayerApp: App {
                 .onAppear {
                     // Prevent window from being released on close — just hide it
                     DispatchQueue.main.async {
-                        NSApplication.shared.windows
-                            .filter { $0.canBecomeMain && !($0 is NSPanel) }
-                            .forEach { $0.isReleasedWhenClosed = false }
+                        for window in NSApplication.shared.windows
+                        where window.canBecomeMain && !(window is NSPanel) && window.level == .normal {
+                            window.isReleasedWhenClosed = false
+                        }
                     }
                 }
         }
@@ -56,17 +57,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showMainWindow() {
         NSApplication.shared.activate(ignoringOtherApps: true)
 
-        // Try to find and show existing main window
+        // Find the real main window — exclude panels and popover/statusbar windows
         if let window = NSApplication.shared.windows.first(where: {
-            $0.canBecomeMain && !($0 is NSPanel)
+            $0.canBecomeMain && !($0 is NSPanel) && $0.level == .normal
         }) {
             window.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        // No window found — create a new one via WindowGroup
-        if #available(macOS 14.0, *) {
-            NSApplication.shared.sendAction(#selector(NSApplication.newWindowForTab(_:)), to: nil, from: nil)
         }
     }
 }
