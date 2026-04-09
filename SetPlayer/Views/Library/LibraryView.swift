@@ -38,8 +38,9 @@ struct LibraryView: View {
         }
         .task {
             await viewModel.loadLibrary()
-            // Restore last playing set
-            if let savedId = player.savedItemId,
+            // Restore last playing set — only if nothing is currently playing
+            if player.currentItem == nil,
+               let savedId = player.savedItemId,
                let item = viewModel.items.first(where: { $0.id == savedId }),
                let url = jellyfin.streamURL(for: item.id) {
                 player.restoreState(item: item, streamURL: url)
@@ -63,6 +64,11 @@ struct LibraryView: View {
                     }
                     .keyboardShortcut("r", modifiers: .command)
                     .help("Refresh Library (⌘R)")
+
+                    SettingsLink {
+                        Image(systemName: "gearshape")
+                    }
+                    .help("Settings (⌘,)")
                 }
             }
         }
@@ -77,6 +83,10 @@ struct LibraryView: View {
                     .tag(SidebarItem.allSets)
                 Label("Recently Added", systemImage: "clock")
                     .tag(SidebarItem.recentlyAdded)
+                if !viewModel.recentlyPlayed.isEmpty {
+                    Label("Recently Played", systemImage: "play.circle")
+                        .tag(SidebarItem.recentlyPlayed)
+                }
             }
 
             if !viewModel.collections.isEmpty {
@@ -108,6 +118,8 @@ struct LibraryView: View {
                     await viewModel.loadAll()
                 case .recentlyAdded:
                     await viewModel.loadAll()
+                case .recentlyPlayed:
+                    break // uses viewModel.recentlyPlayed directly
                 case .collection(let id):
                     if let collection = viewModel.collections.first(where: { $0.id == id }) {
                         await viewModel.loadCollection(collection)
@@ -141,6 +153,8 @@ struct LibraryView: View {
                 return viewModel.items(for: name)
             case .recentlyAdded:
                 return Array(viewModel.filteredItems.prefix(20))
+            case .recentlyPlayed:
+                return viewModel.recentlyPlayed
             default:
                 return viewModel.filteredItems
             }
@@ -195,6 +209,7 @@ struct LibraryView: View {
         switch sidebarSelection {
         case .allSets, .none: viewModel.selectedCollection?.name ?? "All Sets"
         case .recentlyAdded: "Recently Added"
+        case .recentlyPlayed: "Recently Played"
         case .collection: viewModel.selectedCollection?.name ?? "Collection"
         case .artist(let name): name
         }
@@ -392,6 +407,7 @@ struct BottomPlayerBar: View {
 enum SidebarItem: Hashable {
     case allSets
     case recentlyAdded
+    case recentlyPlayed
     case collection(String)
     case artist(String)
 }

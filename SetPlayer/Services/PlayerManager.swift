@@ -128,6 +128,17 @@ final class PlayerManager {
         isPlaying = false
     }
 
+    func stop() {
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        isPlaying = false
+        currentItem = nil
+        chapters = []
+        currentChapterIndex = 0
+        currentTime = 0
+        duration = 0
+    }
+
     func resume() {
         player.play()
         isPlaying = true
@@ -174,12 +185,22 @@ final class PlayerManager {
     private func setupTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self else { return }
-            self.currentTime = time.seconds
-            self.updateCurrentChapter()
-            // Save state every 5 seconds
-            if Int(time.seconds) % 5 == 0 {
-                self.saveState()
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.currentTime = time.seconds
+
+                // Ensure duration is set — KVO callback can miss on fast loads
+                if self.duration <= 0, let item = self.player.currentItem {
+                    let dur = item.duration.seconds
+                    if dur.isFinite && dur > 0 {
+                        self.duration = dur
+                    }
+                }
+
+                self.updateCurrentChapter()
+                if Int(time.seconds) % 5 == 0 {
+                    self.saveState()
+                }
             }
         }
     }

@@ -66,6 +66,22 @@ final class JellyfinService: @unchecked Sendable {
         return response.items.map { $0.toDomain(serverURL: serverURL, apiKey: apiKey) }
     }
 
+    func fetchRecentlyPlayed(limit: Int = 20) async throws -> [JellyfinItem] {
+        var components = urlComponents(path: "/Users/\(userId)/Items")
+        components.queryItems = (components.queryItems ?? []) + [
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "Overview,Genres,Tags,Studios,People,Chapters"),
+            URLQueryItem(name: "SortBy", value: "DatePlayed"),
+            URLQueryItem(name: "SortOrder", value: "Descending"),
+            URLQueryItem(name: "Filters", value: "IsPlayed"),
+            URLQueryItem(name: "IncludeItemTypes", value: "Movie"),
+            URLQueryItem(name: "Limit", value: "\(limit)"),
+        ]
+        let data = try await fetch(components)
+        let response = try decoder.decode(ItemsResponse.self, from: data)
+        return response.items.map { $0.toDomain(serverURL: serverURL, apiKey: apiKey) }
+    }
+
     // MARK: - URLs
 
     func streamURL(for itemId: String) -> URL? {
@@ -91,6 +107,46 @@ final class JellyfinService: @unchecked Sendable {
             URLQueryItem(name: "maxWidth", value: "200"),
         ]
         return components.url
+    }
+
+    // MARK: - Authentication
+
+    static func authenticate(serverURL: String, username: String, password: String) async throws -> ServerConfig {
+        guard var components = URLComponents(string: serverURL) else {
+            throw JellyfinError.invalidURL
+        }
+        components.path = "/Users/AuthenticateByName"
+
+        guard let url = components.url else {
+            throw JellyfinError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let deviceId = Host.current().localizedName ?? "macOS"
+        let authHeader = "MediaBrowser Client=\"SetPlayer\", Device=\"macOS\", DeviceId=\"\(deviceId)\", Version=\"1.0\""
+        request.setValue(authHeader, forHTTPHeaderField: "X-Emby-Authorization")
+
+        let body: [String: String] = ["Username": username, "Pw": password]
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            if code == 401 {
+                throw JellyfinError.invalidCredentials
+            }
+            throw JellyfinError.requestFailed
+        }
+
+        let authResponse = try JSONDecoder().decode(AuthResponse.self, from: data)
+        return ServerConfig(
+            serverURL: serverURL,
+            apiKey: authResponse.accessToken,
+            userId: authResponse.user.id
+        )
     }
 
     // MARK: - Private
@@ -125,12 +181,31 @@ final class JellyfinService: @unchecked Sendable {
 enum JellyfinError: Error, LocalizedError {
     case invalidURL
     case requestFailed
+    case invalidCredentials
 
     var errorDescription: String? {
         switch self {
         case .invalidURL: "Invalid server URL"
         case .requestFailed: "Request failed"
+        case .invalidCredentials: "Invalid username or password"
         }
+    }
+}
+
+// MARK: - Auth Response
+
+private struct AuthResponse: Decodable {
+    let accessToken: String
+    let user: AuthUser
+
+    struct AuthUser: Decodable {
+        let id: String
+        enum CodingKeys: String, CodingKey { case id = "Id" }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "AccessToken"
+        case user = "User"
     }
 }
 

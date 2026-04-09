@@ -13,6 +13,7 @@ enum SortOption: String, CaseIterable, Identifiable {
 @Observable @MainActor
 final class LibraryViewModel {
     var items: [JellyfinItem] = []
+    var recentlyPlayed: [JellyfinItem] = []
     var collections: [JellyfinCollection] = []
     var selectedCollection: JellyfinCollection?
     var searchText: String = ""
@@ -55,10 +56,12 @@ final class LibraryViewModel {
         isLoading = true
         error = nil
         do {
-            let fetchedItems = try await jellyfin.fetchLibraryItems()
-            let fetchedCollections = try await jellyfin.fetchCollections()
-            items = fetchedItems
-            collections = fetchedCollections
+            async let fetchedItems = jellyfin.fetchLibraryItems()
+            async let fetchedCollections = jellyfin.fetchCollections()
+            async let fetchedRecent = jellyfin.fetchRecentlyPlayed()
+            items = try await fetchedItems
+            collections = try await fetchedCollections
+            recentlyPlayed = (try? await fetchedRecent) ?? []
         } catch {
             self.error = error.localizedDescription
         }

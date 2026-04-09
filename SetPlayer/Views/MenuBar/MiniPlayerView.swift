@@ -3,7 +3,6 @@ import SwiftUI
 
 struct MiniPlayerView: View {
     @Environment(PlayerManager.self) private var player
-    @Environment(JellyfinService.self) private var jellyfin
     @Environment(\.openWindow) private var openWindow
 
     @State private var isHoveringProgress = false
