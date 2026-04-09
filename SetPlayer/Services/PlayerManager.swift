@@ -183,7 +183,7 @@ final class PlayerManager {
     // MARK: - Private
 
     private func setupTimeObserver() {
-        let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
+        let interval = CMTime(seconds: 0.25, preferredTimescale: 600)
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             MainActor.assumeIsolated {
                 guard let self else { return }

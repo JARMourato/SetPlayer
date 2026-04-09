@@ -41,7 +41,12 @@ struct SetPlayerApp: App {
             MiniPlayerView()
                 .environment(playerManager)
         } label: {
-            Image(systemName: playerManager.isPlaying ? "waveform" : "music.note")
+            HStack(spacing: 4) {
+                Image(systemName: playerManager.isPlaying ? "waveform" : "music.note")
+                if playerManager.isPlaying, let chapter = playerManager.currentChapter {
+                    MenuBarMarqueeText(text: chapter.name, maxChars: 14, currentTime: playerManager.currentTime)
+                }
+            }
         }
         .menuBarExtraStyle(.window)
     }
