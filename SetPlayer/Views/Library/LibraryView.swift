@@ -227,6 +227,8 @@ struct BottomPlayerBar: View {
     @State private var isScrubbing = false
     @State private var scrubProgress: Double = 0
     @State private var isHoveringProgress = false
+    @State private var progressBounce = false
+    @State private var atBoundary = false
 
     var body: some View {
         if player.currentItem != nil {
@@ -236,6 +238,28 @@ struct BottomPlayerBar: View {
                 .overlay(alignment: .top) {
                     Divider()
                 }
+                .task(id: player.currentItem?.id) {
+                    await extractArtworkColor()
+                }
+        }
+    }
+
+    private func extractArtworkColor() async {
+        guard let item = player.currentItem,
+              let tag = item.imageTags["Primary"],
+              let url = jellyfin.imageURL(for: item.id, tag: tag, maxWidth: 200) else {
+            player.artworkAccentColor = .accentColor
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let image = NSImage(data: data), let color = image.averageGlowColor() {
+                withAnimation(.easeOut(duration: 0.5)) {
+                    player.artworkAccentColor = color
+                }
+            }
+        } catch {
+            player.artworkAccentColor = .accentColor
         }
     }
 
@@ -249,13 +273,13 @@ struct BottomPlayerBar: View {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.15))
                     Rectangle()
-                        .fill(Color.accentColor)
+                        .fill(player.artworkAccentColor)
                         .frame(width: geo.size.width * displayProgress)
 
                     // Scrub handle
                     if isHoveringProgress || isScrubbing {
                         Circle()
-                            .fill(Color.accentColor)
+                            .fill(player.artworkAccentColor)
                             .frame(width: 12, height: 12)
                             .position(
                                 x: geo.size.width * displayProgress,
@@ -264,6 +288,8 @@ struct BottomPlayerBar: View {
                     }
                 }
                 .frame(height: isHoveringProgress || isScrubbing ? 8 : 3)
+                .scaleEffect(y: progressBounce ? 1.4 : 1.0, anchor: .center)
+                .animation(.spring(response: 0.36, dampingFraction: 0.68), value: progressBounce)
                 .animation(.easeOut(duration: 0.15), value: isHoveringProgress)
                 .contentShape(Rectangle().size(width: geo.size.width, height: 20))
                 .onHover { hovering in
@@ -274,11 +300,25 @@ struct BottomPlayerBar: View {
                         .onChanged { value in
                             isScrubbing = true
                             scrubProgress = max(0, min(1, value.location.x / geo.size.width))
+                            let atEdge = scrubProgress <= 0.001 || scrubProgress >= 0.999
+                            if atEdge && !atBoundary {
+                                atBoundary = true
+                                progressBounce = true
+                                HapticManager.play(.selection)
+                                Task { @MainActor in
+                                    try? await Task.sleep(for: .milliseconds(300))
+                                    progressBounce = false
+                                }
+                            } else if !atEdge {
+                                atBoundary = false
+                            }
                         }
                         .onEnded { value in
                             let fraction = max(0, min(1, value.location.x / geo.size.width))
                             player.seek(to: fraction * player.duration)
                             isScrubbing = false
+                            atBoundary = false
+                            progressBounce = false
                         }
                 )
             }
@@ -292,7 +332,7 @@ struct BottomPlayerBar: View {
                         .clipShape(RoundedRectangle(cornerRadius: 6))
 
                     if player.isPlaying {
-                        EqualizerBarsView(isPlaying: true, color: .accentColor)
+                        EqualizerBarsView(isPlaying: true, color: player.artworkAccentColor)
                             .frame(width: 14, height: 14)
                             .transition(.scale.combined(with: .opacity))
                     }

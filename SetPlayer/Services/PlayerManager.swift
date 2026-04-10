@@ -1,5 +1,6 @@
 import AVFoundation
 import Combine
+import SwiftUI
 
 @Observable @MainActor
 final class PlayerManager {
@@ -12,6 +13,7 @@ final class PlayerManager {
     private(set) var currentTime: Double = 0
     private(set) var duration: Double = 0
     private(set) var videoSize: CGSize = .zero
+    var artworkAccentColor: Color = .accentColor
 
     private var timeObserver: Any?
     private var statusObservation: NSKeyValueObservation?
@@ -137,6 +139,7 @@ final class PlayerManager {
         currentChapterIndex = 0
         currentTime = 0
         duration = 0
+        artworkAccentColor = .accentColor
     }
 
     func resume() {

@@ -9,6 +9,8 @@ struct MiniPlayerView: View {
     @State private var isScrubbing = false
     @State private var scrubProgress: Double = 0
     @State private var showTracklist = false
+    @State private var progressBounce = false
+    @State private var atBoundary = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -255,17 +257,19 @@ struct MiniPlayerView: View {
                 Capsule()
                     .fill(Color.primary.opacity(0.12))
                 Capsule()
-                    .fill(Color.primary.opacity(0.6))
+                    .fill(player.artworkAccentColor)
                     .frame(width: max(0, geo.size.width * displayProgress))
 
                 if isHoveringProgress || isScrubbing {
                     Circle()
-                        .fill(Color.primary)
+                        .fill(player.artworkAccentColor)
                         .frame(width: 10, height: 10)
                         .position(x: geo.size.width * displayProgress, y: 3.5)
                 }
             }
             .frame(height: isHoveringProgress || isScrubbing ? 7 : 4)
+            .scaleEffect(y: progressBounce ? 1.4 : 1.0, anchor: .center)
+            .animation(.spring(response: 0.36, dampingFraction: 0.68), value: progressBounce)
             .contentShape(Rectangle().size(width: geo.size.width, height: 16))
             .onHover { isHoveringProgress = $0 }
             .gesture(
@@ -273,11 +277,25 @@ struct MiniPlayerView: View {
                     .onChanged { value in
                         isScrubbing = true
                         scrubProgress = max(0, min(1, value.location.x / geo.size.width))
+                        let atEdge = scrubProgress <= 0.001 || scrubProgress >= 0.999
+                        if atEdge && !atBoundary {
+                            atBoundary = true
+                            progressBounce = true
+                            HapticManager.play(.selection)
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(300))
+                                progressBounce = false
+                            }
+                        } else if !atEdge {
+                            atBoundary = false
+                        }
                     }
                     .onEnded { value in
                         let fraction = max(0, min(1, value.location.x / geo.size.width))
                         player.seek(to: fraction * player.duration)
                         isScrubbing = false
+                        atBoundary = false
+                        progressBounce = false
                     }
             )
             .animation(.easeOut(duration: 0.1), value: isHoveringProgress)

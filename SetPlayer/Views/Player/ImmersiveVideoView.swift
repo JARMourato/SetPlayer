@@ -86,6 +86,8 @@ struct ImmersiveVideoView: View {
     @State private var scrubProgress: Double = 0
     @State private var isHoveringProgress = false
     @State private var isInteracting = false
+    @State private var progressBounce = false
+    @State private var atBoundary = false
     @State private var savedWindowFrame: NSRect = .zero
 
     var body: some View {
@@ -417,6 +419,8 @@ struct ImmersiveVideoView: View {
                 }
             }
             .frame(height: isHoveringProgress || isScrubbing ? 10 : 5)
+            .scaleEffect(y: progressBounce ? 1.4 : 1.0, anchor: .bottom)
+            .animation(.spring(response: 0.36, dampingFraction: 0.68), value: progressBounce)
             .contentShape(Rectangle().size(width: geo.size.width, height: 24))
             .onHover { hovering in
                 isHoveringProgress = hovering
@@ -429,12 +433,26 @@ struct ImmersiveVideoView: View {
                         isInteracting = true
                         scrubProgress = max(0, min(1, value.location.x / geo.size.width))
                         revealControls()
+                        let atEdge = scrubProgress <= 0.001 || scrubProgress >= 0.999
+                        if atEdge && !atBoundary {
+                            atBoundary = true
+                            progressBounce = true
+                            HapticManager.play(.selection)
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(300))
+                                progressBounce = false
+                            }
+                        } else if !atEdge {
+                            atBoundary = false
+                        }
                     }
                     .onEnded { value in
                         let fraction = max(0, min(1, value.location.x / geo.size.width))
                         player.seek(to: fraction * player.duration)
                         isScrubbing = false
                         isInteracting = false
+                        atBoundary = false
+                        progressBounce = false
                         scheduleHide()
                     }
             )
