@@ -15,9 +15,14 @@ final class PlayerManager {
     private(set) var videoSize: CGSize = .zero
     var artworkAccentColor: Color = .accentColor
 
+    private(set) var queue: [QueueEntry] = []
+
+    var upNext: QueueEntry? { queue.first }
+
     private var timeObserver: Any?
     private var statusObservation: NSKeyValueObservation?
     private var videoSizeObservation: NSKeyValueObservation?
+    private var endOfPlaybackObserver: NSObjectProtocol?
 
     var currentChapter: JellyfinChapter? {
         guard chapters.indices.contains(currentChapterIndex) else { return nil }
@@ -112,6 +117,20 @@ final class PlayerManager {
             }
         }
 
+        // Observe end of playback for queue auto-advance
+        if let observer = endOfPlaybackObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        endOfPlaybackObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.advanceQueue()
+            }
+        }
+
         player.play()
         isPlaying = true
     }
@@ -133,6 +152,10 @@ final class PlayerManager {
     func stop() {
         player.pause()
         player.replaceCurrentItem(with: nil)
+        if let observer = endOfPlaybackObserver {
+            NotificationCenter.default.removeObserver(observer)
+            endOfPlaybackObserver = nil
+        }
         isPlaying = false
         currentItem = nil
         chapters = []
@@ -140,6 +163,37 @@ final class PlayerManager {
         currentTime = 0
         duration = 0
         artworkAccentColor = .accentColor
+    }
+
+    // MARK: - Queue
+
+    func addToQueue(_ item: JellyfinItem, streamURL: URL, imageURL: URL? = nil) {
+        queue.append(QueueEntry(item: item, streamURL: streamURL, imageURL: imageURL))
+    }
+
+    func playNext(_ item: JellyfinItem, streamURL: URL, imageURL: URL? = nil) {
+        queue.insert(QueueEntry(item: item, streamURL: streamURL, imageURL: imageURL), at: 0)
+    }
+
+    func removeFromQueue(at offsets: IndexSet) {
+        queue.remove(atOffsets: offsets)
+    }
+
+    func moveInQueue(from source: IndexSet, to destination: Int) {
+        queue.move(fromOffsets: source, toOffset: destination)
+    }
+
+    func clearQueue() {
+        queue.removeAll()
+    }
+
+    private func advanceQueue() {
+        guard !queue.isEmpty else {
+            isPlaying = false
+            return
+        }
+        let next = queue.removeFirst()
+        play(item: next.item, streamURL: next.streamURL)
     }
 
     func resume() {

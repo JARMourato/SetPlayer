@@ -99,6 +99,28 @@ struct SetDetailView: View {
                     .tint(.accentColor)
                     .controlSize(.large)
                     .disabled(isCurrentSet && player.isPlaying)
+
+                    Menu {
+                        Button("Play Next") {
+                            if let url = jellyfin.streamURL(for: item.id) {
+                                let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
+                                player.playNext(item, streamURL: url, imageURL: imageURL)
+                                HapticManager.play(.selection)
+                            }
+                        }
+                        Button("Add to Queue") {
+                            if let url = jellyfin.streamURL(for: item.id) {
+                                let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
+                                player.addToQueue(item, streamURL: url, imageURL: imageURL)
+                                HapticManager.play(.selection)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 20))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .frame(width: 32)
                 }
                 .padding(.top, 8)
 

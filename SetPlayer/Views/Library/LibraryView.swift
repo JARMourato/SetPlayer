@@ -10,6 +10,7 @@ struct LibraryView: View {
     @State private var sidebarSelection: SidebarItem? = .allSets
     @State private var showingDetail = false
     @State private var playerBarState = PlayerBarState()
+    @State private var showQueue = false
 
     struct PlayerBarState {
         var showVideo = false
@@ -25,14 +26,23 @@ struct LibraryView: View {
                 ImmersiveVideoView(showVideo: $playerBarState.showVideo)
             } else {
                 VStack(spacing: 0) {
-                    NavigationSplitView {
-                        sidebar
-                    } detail: {
-                        mainContent
-                    }
-                    .searchable(text: vm.searchText, prompt: "Search sets or tracks...")
+                    HStack(spacing: 0) {
+                        NavigationSplitView {
+                            sidebar
+                        } detail: {
+                            mainContent
+                        }
+                        .searchable(text: vm.searchText, prompt: "Search sets or tracks...")
 
-                    BottomPlayerBar(showVideo: $playerBarState.showVideo)
+                        if showQueue {
+                            Divider()
+                            QueueView()
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                        }
+                    }
+                    .animation(.spring(response: 0.4, dampingFraction: 0.75), value: showQueue)
+
+                    BottomPlayerBar(showVideo: $playerBarState.showVideo, showQueue: $showQueue)
                 }
             }
         }
@@ -64,6 +74,13 @@ struct LibraryView: View {
                     }
                     .keyboardShortcut("r", modifiers: .command)
                     .help("Refresh Library (⌘R)")
+
+                    Button {
+                        withAnimation { showQueue.toggle() }
+                    } label: {
+                        Image(systemName: showQueue ? "list.bullet.rectangle.fill" : "list.bullet.rectangle")
+                    }
+                    .help("Toggle Queue")
 
                     SettingsLink {
                         Image(systemName: "gearshape")
@@ -185,6 +202,7 @@ struct LibraryView: View {
                     ) {
                         ForEach(displayItems) { item in
                             SetGridItem(item: item, isSelected: selectedItem?.id == item.id)
+                                .draggable(item.id)
                                 .onTapGesture(count: 2) {
                                     selectedItem = item
                                     if let url = jellyfin.streamURL(for: item.id) {
@@ -194,6 +212,28 @@ struct LibraryView: View {
                                 .onTapGesture {
                                     selectedItem = item
                                     showingDetail = true
+                                }
+                                .contextMenu {
+                                    Button("Play") {
+                                        if let url = jellyfin.streamURL(for: item.id) {
+                                            player.play(item: item, streamURL: url)
+                                        }
+                                    }
+                                    Divider()
+                                    Button("Play Next") {
+                                        if let url = jellyfin.streamURL(for: item.id) {
+                                            let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
+                                            player.playNext(item, streamURL: url, imageURL: imageURL)
+                                            HapticManager.play(.selection)
+                                        }
+                                    }
+                                    Button("Add to Queue") {
+                                        if let url = jellyfin.streamURL(for: item.id) {
+                                            let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
+                                            player.addToQueue(item, streamURL: url, imageURL: imageURL)
+                                            HapticManager.play(.selection)
+                                        }
+                                    }
                                 }
                         }
                     }
@@ -220,6 +260,7 @@ struct LibraryView: View {
 
 struct BottomPlayerBar: View {
     @Binding var showVideo: Bool
+    @Binding var showQueue: Bool
 
     @Environment(PlayerManager.self) private var player
     @Environment(JellyfinService.self) private var jellyfin
@@ -402,6 +443,15 @@ struct BottomPlayerBar: View {
                 }
                 .frame(width: 120, alignment: .trailing)
 
+                // Up Next hint
+                if let next = player.upNext {
+                    Text("Up Next: \(next.item.artist)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .frame(maxWidth: 120)
+                }
+
                 // Video toggle
                 Button {
                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -414,6 +464,27 @@ struct BottomPlayerBar: View {
                 }
                 .buttonStyle(.plain)
                 .help(showVideo ? "Hide Video" : "Show Video")
+
+                // Queue toggle
+                Button {
+                    withAnimation { showQueue.toggle() }
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: showQueue ? "list.bullet.rectangle.fill" : "list.bullet.rectangle")
+                            .font(.system(size: 14))
+                            .foregroundStyle(showQueue ? Color.accentColor : .secondary)
+                        if !player.queue.isEmpty {
+                            Text("\(player.queue.count)")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 3)
+                                .background(Capsule().fill(player.artworkAccentColor))
+                                .offset(x: 6, y: -4)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Toggle Queue")
             }
             .padding(.horizontal, 16)
             .frame(maxHeight: .infinity)

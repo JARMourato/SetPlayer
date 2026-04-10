@@ -1,5 +1,12 @@
 import Foundation
 
+struct QueueEntry: Identifiable {
+    let id = UUID()
+    let item: JellyfinItem
+    let streamURL: URL
+    let imageURL: URL?
+}
+
 struct JellyfinItem: Identifiable, Hashable {
     let id: String
     let name: String

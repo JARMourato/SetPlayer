@@ -69,9 +69,10 @@ final class FloatingVideoManager {
         pv.autoresizingMask = [.width, .height]
         window.contentView = pv
 
-        // Round corners
+        // Pill-shaped continuous corners
         window.contentView?.wantsLayer = true
-        window.contentView?.layer?.cornerRadius = 10
+        window.contentView?.layer?.cornerRadius = 16
+        window.contentView?.layer?.cornerCurve = .continuous
         window.contentView?.layer?.masksToBounds = true
 
         window.orderFront(nil)
