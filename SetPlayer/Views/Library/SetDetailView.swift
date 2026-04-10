@@ -39,24 +39,11 @@ struct SetDetailView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: 20) {
-            if let tag = item.imageTags["Primary"],
-               let url = jellyfin.imageURL(for: item.id, tag: tag, maxWidth: 500) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    ZStack {
-                        Color(nsColor: .controlBackgroundColor)
-                        Image(systemName: "music.mic")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.quaternary)
-                    }
-                }
-                .frame(width: 220, height: 220)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-            }
+            GlowingAlbumArt(
+                url: item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 500) },
+                size: 220,
+                cornerRadius: 10
+            )
 
             VStack(alignment: .leading, spacing: 8) {
                 Spacer()
@@ -101,6 +88,7 @@ struct SetDetailView: View {
                     Button {
                         if let url = jellyfin.streamURL(for: item.id) {
                             player.play(item: item, streamURL: url)
+                            HapticManager.play(.playPause)
                         }
                     } label: {
                         Label(isCurrentSet ? "Playing" : "Play", systemImage: isCurrentSet && player.isPlaying ? "waveform" : "play.fill")

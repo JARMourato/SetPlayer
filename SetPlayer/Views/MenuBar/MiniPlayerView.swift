@@ -35,10 +35,24 @@ struct MiniPlayerView: View {
 
     private func playerView(item: JellyfinItem) -> some View {
         VStack(spacing: 0) {
-            // Video preview (no native controls)
+            // Video preview (swipe left/right to skip tracks)
             AVPlayerViewRepresentable(player: player.player)
                 .frame(width: 280, height: 280 / videoAspectRatio)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .gesture(
+                    DragGesture(minimumDistance: 50)
+                        .onEnded { value in
+                            let h = value.translation.width
+                            guard abs(h) > abs(value.translation.height) * 1.5 else { return }
+                            if h < -50 {
+                                player.nextChapter()
+                                HapticManager.play(.navigation)
+                            } else if h > 50 {
+                                player.previousChapter()
+                                HapticManager.play(.navigation)
+                            }
+                        }
+                )
                 .padding(.horizontal, 10)
                 .padding(.top, 10)
 
@@ -125,19 +139,28 @@ struct MiniPlayerView: View {
 
             // Minimal controls at bottom
             HStack(spacing: 24) {
-                Button { player.previousChapter() } label: {
+                Button {
+                    player.previousChapter()
+                    HapticManager.play(.navigation)
+                } label: {
                     Image(systemName: "backward.end.fill")
                         .font(.system(size: 14))
                 }
                 .buttonStyle(.plain)
 
-                Button { player.togglePlayPause() } label: {
+                Button {
+                    player.togglePlayPause()
+                    HapticManager.play(.playPause)
+                } label: {
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 18, weight: .medium))
                 }
                 .buttonStyle(.plain)
 
-                Button { player.nextChapter() } label: {
+                Button {
+                    player.nextChapter()
+                    HapticManager.play(.navigation)
+                } label: {
                     Image(systemName: "forward.end.fill")
                         .font(.system(size: 14))
                 }
@@ -266,26 +289,35 @@ struct MiniPlayerView: View {
 
     private var controls: some View {
         HStack(spacing: 24) {
-            Button { player.previousChapter() } label: {
+            Button {
+                player.previousChapter()
+                HapticManager.play(.navigation)
+            } label: {
                 Image(systemName: "backward.end.fill")
                     .font(.system(size: 16))
             }
             .buttonStyle(.plain)
 
-            Button { player.togglePlayPause() } label: {
+            Button {
+                player.togglePlayPause()
+                HapticManager.play(.playPause)
+            } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 24, weight: .medium))
             }
             .buttonStyle(.plain)
 
-            Button { player.nextChapter() } label: {
+            Button {
+                player.nextChapter()
+                HapticManager.play(.navigation)
+            } label: {
                 Image(systemName: "forward.end.fill")
                     .font(.system(size: 16))
             }
             .buttonStyle(.plain)
 
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                     showTracklist = true
                 }
             } label: {

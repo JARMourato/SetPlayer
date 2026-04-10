@@ -93,6 +93,21 @@ struct ImmersiveVideoView: View {
             VideoLayerView(player: player.player)
                 .ignoresSafeArea()
                 .background(.black)
+                .gesture(
+                    DragGesture(minimumDistance: 50)
+                        .onEnded { value in
+                            let h = value.translation.width
+                            guard abs(h) > abs(value.translation.height) * 1.5 else { return }
+                            if h < -50 {
+                                player.nextChapter()
+                                HapticManager.play(.navigation)
+                            } else if h > 50 {
+                                player.previousChapter()
+                                HapticManager.play(.navigation)
+                            }
+                            revealControls()
+                        }
+                )
 
             if showControls {
                 topOverlay
@@ -106,8 +121,8 @@ struct ImmersiveVideoView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.black)
-        .animation(.easeInOut(duration: 0.3), value: showControls)
-        .animation(.easeInOut(duration: 0.25), value: showTracklist)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: showControls)
+        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: showTracklist)
         .onHover { hovering in
             if hovering { revealControls() }
         }
@@ -200,6 +215,7 @@ struct ImmersiveVideoView: View {
                     HStack(spacing: 28) {
                         controlButton(icon: "backward.end.fill", size: 15) {
                             player.previousChapter()
+                            HapticManager.play(.navigation)
                         }
 
                         controlButton(
@@ -207,10 +223,12 @@ struct ImmersiveVideoView: View {
                             size: 22
                         ) {
                             player.togglePlayPause()
+                            HapticManager.play(.playPause)
                         }
 
                         controlButton(icon: "forward.end.fill", size: 15) {
                             player.nextChapter()
+                            HapticManager.play(.navigation)
                         }
                     }
 

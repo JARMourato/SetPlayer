@@ -285,11 +285,17 @@ struct BottomPlayerBar: View {
             .frame(height: isHoveringProgress || isScrubbing ? 8 : 3)
 
             HStack(spacing: 16) {
-                // Album art + track info (left)
+                // Album art + equalizer + track info (left)
                 HStack(spacing: 12) {
                     albumArt
                         .frame(width: 48, height: 48)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                    if player.isPlaying {
+                        EqualizerBarsView(isPlaying: true, color: .accentColor)
+                            .frame(width: 14, height: 14)
+                            .transition(.scale.combined(with: .opacity))
+                    }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(player.currentChapter?.name ?? "Unknown Track")
@@ -303,26 +309,36 @@ struct BottomPlayerBar: View {
                     }
                     .frame(maxWidth: 250, alignment: .leading)
                 }
+                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: player.isPlaying)
 
                 Spacer()
 
                 // Playback controls (center)
                 HStack(spacing: 20) {
-                    Button { player.previousChapter() } label: {
+                    Button {
+                        player.previousChapter()
+                        HapticManager.play(.navigation)
+                    } label: {
                         Image(systemName: "backward.fill")
                             .font(.system(size: 16))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
 
-                    Button { player.togglePlayPause() } label: {
+                    Button {
+                        player.togglePlayPause()
+                        HapticManager.play(.playPause)
+                    } label: {
                         Image(systemName: player.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                             .font(.system(size: 32))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
 
-                    Button { player.nextChapter() } label: {
+                    Button {
+                        player.nextChapter()
+                        HapticManager.play(.navigation)
+                    } label: {
                         Image(systemName: "forward.fill")
                             .font(.system(size: 16))
                     }
