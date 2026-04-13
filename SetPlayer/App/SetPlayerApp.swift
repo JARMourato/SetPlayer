@@ -63,6 +63,7 @@ struct SetPlayerApp: App {
 struct ConnectedView: View {
     @State private var jellyfin: JellyfinService
     @State private var libraryViewModel: LibraryViewModel
+    @Environment(PlayerManager.self) private var playerManager
     let onDisconnect: () -> Void
 
     init(config: ServerConfig, onDisconnect: @escaping () -> Void) {
@@ -81,6 +82,12 @@ struct ConnectedView: View {
             .environment(jellyfin)
             .environment(libraryViewModel)
             .environment(\.disconnect, onDisconnect)
+            .onAppear {
+                playerManager.jellyfinService = jellyfin
+            }
+            .onDisappear {
+                playerManager.jellyfinService = nil
+            }
     }
 }
 

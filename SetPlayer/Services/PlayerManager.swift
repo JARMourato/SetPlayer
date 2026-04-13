@@ -14,6 +14,7 @@ final class PlayerManager {
     private(set) var duration: Double = 0
     private(set) var videoSize: CGSize = .zero
     var artworkAccentColor: Color = .accentColor
+    var jellyfinService: JellyfinService?
 
     private(set) var queue: [QueueEntry] = []
 
@@ -133,6 +134,12 @@ final class PlayerManager {
 
         player.play()
         isPlaying = true
+
+        // Report playback start to Jellyfin
+        if let service = jellyfinService {
+            let id = item.id
+            Task { await service.reportPlaybackStart(itemId: id) }
+        }
     }
 
     func togglePlayPause() {
@@ -142,14 +149,23 @@ final class PlayerManager {
             player.play()
         }
         isPlaying.toggle()
+        reportPlaybackProgress()
     }
 
     func pause() {
         player.pause()
         isPlaying = false
+        reportPlaybackProgress()
     }
 
     func stop() {
+        // Report playback stopped to Jellyfin
+        if let service = jellyfinService, let item = currentItem {
+            let ticks = Int64(currentTime * 10_000_000)
+            let id = item.id
+            Task { await service.reportPlaybackStopped(itemId: id, positionTicks: ticks) }
+        }
+
         player.pause()
         player.replaceCurrentItem(with: nil)
         if let observer = endOfPlaybackObserver {
@@ -258,8 +274,19 @@ final class PlayerManager {
                 if Int(time.seconds) % 5 == 0 {
                     self.saveState()
                 }
+                if Int(time.seconds) % 10 == 0 {
+                    self.reportPlaybackProgress()
+                }
             }
         }
+    }
+
+    private func reportPlaybackProgress() {
+        guard let service = jellyfinService, let item = currentItem else { return }
+        let ticks = Int64(currentTime * 10_000_000)
+        let paused = !isPlaying
+        let id = item.id
+        Task { await service.reportPlaybackProgress(itemId: id, positionTicks: ticks, isPaused: paused) }
     }
 
     private func updateCurrentChapter() {

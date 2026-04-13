@@ -104,6 +104,10 @@ struct LibraryView: View {
                     Label("Recently Played", systemImage: "play.circle")
                         .tag(SidebarItem.recentlyPlayed)
                 }
+                if !viewModel.mostPlayed.isEmpty {
+                    Label("Most Played", systemImage: "flame")
+                        .tag(SidebarItem.mostPlayed)
+                }
             }
 
             if !viewModel.collections.isEmpty {
@@ -143,6 +147,8 @@ struct LibraryView: View {
                     }
                 case .artist:
                     break
+                case .mostPlayed:
+                    break // uses viewModel.mostPlayed directly
                 }
             }
         }
@@ -172,6 +178,8 @@ struct LibraryView: View {
                 return Array(viewModel.filteredItems.prefix(20))
             case .recentlyPlayed:
                 return viewModel.recentlyPlayed
+            case .mostPlayed:
+                return viewModel.mostPlayed
             default:
                 return viewModel.filteredItems
             }
@@ -250,6 +258,7 @@ struct LibraryView: View {
         case .allSets, .none: viewModel.selectedCollection?.name ?? "All Sets"
         case .recentlyAdded: "Recently Added"
         case .recentlyPlayed: "Recently Played"
+        case .mostPlayed: "Most Played"
         case .collection: viewModel.selectedCollection?.name ?? "Collection"
         case .artist(let name): name
         }
@@ -535,6 +544,7 @@ enum SidebarItem: Hashable {
     case allSets
     case recentlyAdded
     case recentlyPlayed
+    case mostPlayed
     case collection(String)
     case artist(String)
 }

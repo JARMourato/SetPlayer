@@ -82,6 +82,56 @@ final class JellyfinService: @unchecked Sendable {
         return response.items.map { $0.toDomain(serverURL: serverURL, apiKey: apiKey) }
     }
 
+    func fetchMostPlayed(limit: Int = 20) async throws -> [JellyfinItem] {
+        var components = urlComponents(path: "/Users/\(userId)/Items")
+        components.queryItems = (components.queryItems ?? []) + [
+            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Fields", value: "Overview,Genres,Tags,Studios,People,Chapters"),
+            URLQueryItem(name: "SortBy", value: "PlayCount"),
+            URLQueryItem(name: "SortOrder", value: "Descending"),
+            URLQueryItem(name: "Filters", value: "IsPlayed"),
+            URLQueryItem(name: "IncludeItemTypes", value: "Movie"),
+            URLQueryItem(name: "Limit", value: "\(limit)"),
+        ]
+        let data = try await fetch(components)
+        let response = try decoder.decode(ItemsResponse.self, from: data)
+        return response.items.map { $0.toDomain(serverURL: serverURL, apiKey: apiKey) }
+    }
+
+    // MARK: - Playback Reporting
+
+    func reportPlaybackStart(itemId: String, positionTicks: Int64 = 0) async {
+        let components = urlComponents(path: "/Sessions/Playing")
+        try? await post(components, body: [
+            "ItemId": itemId,
+            "PositionTicks": positionTicks,
+            "CanSeek": true,
+            "MediaSourceId": itemId,
+            "PlayMethod": "DirectStream",
+        ])
+    }
+
+    func reportPlaybackProgress(itemId: String, positionTicks: Int64, isPaused: Bool) async {
+        let components = urlComponents(path: "/Sessions/Playing/Progress")
+        try? await post(components, body: [
+            "ItemId": itemId,
+            "PositionTicks": positionTicks,
+            "IsPaused": isPaused,
+            "CanSeek": true,
+            "MediaSourceId": itemId,
+            "PlayMethod": "DirectStream",
+        ])
+    }
+
+    func reportPlaybackStopped(itemId: String, positionTicks: Int64) async {
+        let components = urlComponents(path: "/Sessions/Playing/Stopped")
+        try? await post(components, body: [
+            "ItemId": itemId,
+            "PositionTicks": positionTicks,
+            "MediaSourceId": itemId,
+        ])
+    }
+
     // MARK: - URLs
 
     func streamURL(for itemId: String) -> URL? {
@@ -159,6 +209,20 @@ final class JellyfinService: @unchecked Sendable {
         }
         components.queryItems?.append(URLQueryItem(name: "api_key", value: apiKey))
         return components
+    }
+
+    private func post(_ components: URLComponents, body: [String: Any]) async throws {
+        guard let url = components.url else { throw JellyfinError.invalidURL }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("MediaBrowser Token=\"\(apiKey)\"", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            print("[JellyfinService] POST \(components.path) failed: HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+            throw JellyfinError.requestFailed
+        }
     }
 
     private func fetch(_ components: URLComponents) async throws -> Data {
