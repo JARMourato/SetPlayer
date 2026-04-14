@@ -38,32 +38,77 @@ struct QueueView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack {
-            Label("Up Next", systemImage: "list.bullet")
-                .font(.system(size: 13, weight: .bold))
+        VStack(spacing: 6) {
+            HStack {
+                Label("Up Next", systemImage: "list.bullet")
+                    .font(.system(size: 13, weight: .bold))
 
-            Spacer()
+                Spacer()
 
-            if !player.queue.isEmpty {
-                Text("\(player.queue.count)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.secondary))
+                if !player.queue.isEmpty {
+                    Text("\(player.queue.count)")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.secondary))
 
-                Button("Clear") {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                        player.clearQueue()
+                    Button("Clear") {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                            player.clearQueue()
+                        }
                     }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
-                .font(.system(size: 11))
+            }
+
+            // Shuffle & Repeat controls
+            HStack(spacing: 12) {
+                Button {
+                    player.toggleShuffle()
+                    HapticManager.play(.selection)
+                } label: {
+                    Image(systemName: "shuffle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(player.shuffleEnabled ? player.artworkAccentColor : .secondary)
+                }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .help(player.shuffleEnabled ? "Shuffle On" : "Shuffle Off")
+
+                Button {
+                    player.cycleRepeatMode()
+                    HapticManager.play(.selection)
+                } label: {
+                    Image(systemName: repeatIcon)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(player.repeatMode != .off ? player.artworkAccentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(repeatLabel)
+
+                Spacer()
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private var repeatIcon: String {
+        switch player.repeatMode {
+        case .off: "repeat"
+        case .repeatAll: "repeat"
+        case .repeatOne: "repeat.1"
+        }
+    }
+
+    private var repeatLabel: String {
+        switch player.repeatMode {
+        case .off: "Repeat Off"
+        case .repeatAll: "Repeat All"
+        case .repeatOne: "Repeat One"
+        }
     }
 
     // MARK: - Empty State

@@ -17,8 +17,17 @@ final class PlayerManager {
     var jellyfinService: JellyfinService?
 
     private(set) var queue: [QueueEntry] = []
+    var shuffleEnabled = false
+    var repeatMode: RepeatMode = .off
+    private var currentStreamURL: URL?
 
     var upNext: QueueEntry? { queue.first }
+
+    enum RepeatMode: String, CaseIterable {
+        case off
+        case repeatAll
+        case repeatOne
+    }
 
     private var timeObserver: Any?
     private var statusObservation: NSKeyValueObservation?
@@ -37,6 +46,7 @@ final class PlayerManager {
 
     init() {
         setupTimeObserver()
+        restoreQueue()
     }
 
     nonisolated deinit {
@@ -46,6 +56,7 @@ final class PlayerManager {
 
     private static let savedItemIdKey = "PlayerManager.savedItemId"
     private static let savedTimeKey = "PlayerManager.savedTime"
+    private static let savedQueueKey = "PlayerManager.savedQueue"
 
     func saveState() {
         guard let item = currentItem else { return }
@@ -88,6 +99,7 @@ final class PlayerManager {
 
     func play(item: JellyfinItem, streamURL: URL) {
         currentItem = item
+        currentStreamURL = streamURL
         chapters = item.chapters
         currentChapterIndex = 0
 
@@ -185,31 +197,82 @@ final class PlayerManager {
 
     func addToQueue(_ item: JellyfinItem, streamURL: URL, imageURL: URL? = nil) {
         queue.append(QueueEntry(item: item, streamURL: streamURL, imageURL: imageURL))
+        saveQueue()
     }
 
     func playNext(_ item: JellyfinItem, streamURL: URL, imageURL: URL? = nil) {
         queue.insert(QueueEntry(item: item, streamURL: streamURL, imageURL: imageURL), at: 0)
+        saveQueue()
     }
 
     func removeFromQueue(at offsets: IndexSet) {
         queue.remove(atOffsets: offsets)
+        saveQueue()
     }
 
     func moveInQueue(from source: IndexSet, to destination: Int) {
         queue.move(fromOffsets: source, toOffset: destination)
+        saveQueue()
     }
 
     func clearQueue() {
         queue.removeAll()
+        saveQueue()
+    }
+
+    func toggleShuffle() {
+        shuffleEnabled.toggle()
+        if shuffleEnabled && !queue.isEmpty {
+            queue.shuffle()
+            saveQueue()
+        }
+    }
+
+    func cycleRepeatMode() {
+        switch repeatMode {
+        case .off: repeatMode = .repeatAll
+        case .repeatAll: repeatMode = .repeatOne
+        case .repeatOne: repeatMode = .off
+        }
     }
 
     private func advanceQueue() {
+        // Repeat one: replay current set from the start
+        if repeatMode == .repeatOne {
+            player.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero)
+            player.play()
+            isPlaying = true
+            currentChapterIndex = 0
+            if let service = jellyfinService, let item = currentItem {
+                let id = item.id
+                Task { await service.reportPlaybackStart(itemId: id) }
+            }
+            return
+        }
+
+        // Repeat all: re-add current to end of queue before advancing
+        if repeatMode == .repeatAll, let current = currentItem, let streamURL = currentStreamURL {
+            queue.append(QueueEntry(item: current, streamURL: streamURL, imageURL: nil))
+        }
+
         guard !queue.isEmpty else {
             isPlaying = false
             return
         }
         let next = queue.removeFirst()
+        saveQueue()
         play(item: next.item, streamURL: next.streamURL)
+    }
+
+    private func saveQueue() {
+        if let data = try? JSONEncoder().encode(queue) {
+            UserDefaults.standard.set(data, forKey: Self.savedQueueKey)
+        }
+    }
+
+    private func restoreQueue() {
+        guard let data = UserDefaults.standard.data(forKey: Self.savedQueueKey) else { return }
+        queue = (try? JSONDecoder().decode([QueueEntry].self, from: data)) ?? []
     }
 
     func resume() {

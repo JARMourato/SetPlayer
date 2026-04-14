@@ -1,13 +1,13 @@
 import Foundation
 
-struct QueueEntry: Identifiable {
+struct QueueEntry: Identifiable, Codable {
     let id = UUID()
     let item: JellyfinItem
     let streamURL: URL
     let imageURL: URL?
 }
 
-struct JellyfinItem: Identifiable, Hashable {
+struct JellyfinItem: Identifiable, Hashable, Codable {
     let id: String
     let name: String
     let year: Int?
@@ -33,7 +33,7 @@ struct JellyfinItem: Identifiable, Hashable {
     }
 }
 
-struct JellyfinChapter: Identifiable, Hashable {
+struct JellyfinChapter: Identifiable, Hashable, Codable {
     let id = UUID()
     let startTicks: Int64
     let name: String
@@ -55,12 +55,12 @@ struct JellyfinChapter: Identifiable, Hashable {
     }
 }
 
-struct JellyfinPerson: Hashable {
+struct JellyfinPerson: Hashable, Codable {
     let name: String
     let role: String?
 }
 
-struct JellyfinCollection: Identifiable, Hashable {
+struct JellyfinCollection: Identifiable, Hashable, Codable {
     let id: String
     let name: String
 }
