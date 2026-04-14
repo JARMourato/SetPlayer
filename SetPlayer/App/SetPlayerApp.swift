@@ -85,9 +85,6 @@ struct ConnectedView: View {
             .onAppear {
                 playerManager.jellyfinService = jellyfin
             }
-            .onDisappear {
-                playerManager.jellyfinService = nil
-            }
     }
 }
 
