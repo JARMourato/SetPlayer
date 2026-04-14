@@ -9,6 +9,7 @@ struct MiniPlayerView: View {
     @State private var isScrubbing = false
     @State private var scrubProgress: Double = 0
     @State private var showTracklist = false
+    @State private var showQueue = false
     @State private var progressBounce = false
     @State private var atBoundary = false
 
@@ -17,6 +18,8 @@ struct MiniPlayerView: View {
             if let item = player.currentItem {
                 if showTracklist {
                     tracklistView
+                } else if showQueue {
+                    miniQueueView
                 } else {
                     playerView(item: item)
                 }
@@ -164,6 +167,192 @@ struct MiniPlayerView: View {
         }
     }
 
+    // MARK: - Mini Queue View
+
+    private var miniQueueView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showQueue = false
+                    }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+
+                Text("Up Next")
+                    .font(.system(size: 13, weight: .bold))
+
+                Spacer()
+
+                if !player.queue.isEmpty {
+                    Text("\(player.queue.count)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.secondary))
+
+                    Button("Clear") {
+                        withAnimation { player.clearQueue() }
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+
+            // Shuffle & Repeat
+            HStack(spacing: 14) {
+                Button {
+                    player.toggleShuffle()
+                    HapticManager.play(.selection)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "shuffle")
+                            .font(.system(size: 10, weight: .medium))
+                        Text("Shuffle")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(player.shuffleEnabled ? player.artworkAccentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    player.cycleRepeatMode()
+                    HapticManager.play(.selection)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: player.repeatMode == .repeatOne ? "repeat.1" : "repeat")
+                            .font(.system(size: 10, weight: .medium))
+                        Text(player.repeatMode == .off ? "Repeat" : (player.repeatMode == .repeatAll ? "All" : "One"))
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(player.repeatMode != .off ? player.artworkAccentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 8)
+
+            Divider()
+
+            if player.queue.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.quaternary)
+                    Text("Queue is empty")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 200)
+            } else {
+                List {
+                    ForEach(player.queue) { entry in
+                        miniQueueRow(entry)
+                    }
+                    .onDelete { offsets in
+                        withAnimation {
+                            player.removeFromQueue(at: offsets)
+                        }
+                    }
+                    .onMove { source, destination in
+                        player.moveInQueue(from: source, to: destination)
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .frame(height: 280)
+            }
+
+            // Minimal controls at bottom
+            HStack(spacing: 24) {
+                Button {
+                    player.previousChapter()
+                    HapticManager.play(.navigation)
+                } label: {
+                    Image(systemName: "backward.end.fill")
+                        .font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    player.togglePlayPause()
+                    HapticManager.play(.playPause)
+                } label: {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 18, weight: .medium))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    player.nextChapter()
+                    HapticManager.play(.navigation)
+                } label: {
+                    Image(systemName: "forward.end.fill")
+                        .font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.vertical, 10)
+
+            Divider()
+
+            actions
+                .padding(.vertical, 8)
+        }
+    }
+
+    private func miniQueueRow(_ entry: QueueEntry) -> some View {
+        HStack(spacing: 8) {
+            if let url = entry.imageURL {
+                AsyncImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Color(nsColor: .controlBackgroundColor)
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+            } else {
+                ZStack {
+                    Color(nsColor: .controlBackgroundColor)
+                    Image(systemName: "music.mic")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.quaternary)
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.item.artist)
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                Text(entry.item.festival)
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 4)
+
+            if let runtime = entry.item.runtime {
+                Text("\(runtime)m")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(.quaternary)
+            }
+        }
+        .padding(.vertical, 1)
+    }
+
     @State private var hoveredTrackIndex: Int?
 
     private func miniTrackRow(chapter: JellyfinChapter, index: Int) -> some View {
@@ -292,44 +481,93 @@ struct MiniPlayerView: View {
     // MARK: - Controls
 
     private var controls: some View {
-        HStack(spacing: 24) {
-            Button {
-                player.previousChapter()
-                HapticManager.play(.navigation)
-            } label: {
-                Image(systemName: "backward.end.fill")
-                    .font(.system(size: 16))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                player.togglePlayPause()
-                HapticManager.play(.playPause)
-            } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 24, weight: .medium))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                player.nextChapter()
-                HapticManager.play(.navigation)
-            } label: {
-                Image(systemName: "forward.end.fill")
-                    .font(.system(size: 16))
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                    showTracklist = true
+        VStack(spacing: 6) {
+            HStack(spacing: 24) {
+                Button {
+                    player.previousChapter()
+                    HapticManager.play(.navigation)
+                } label: {
+                    Image(systemName: "backward.end.fill")
+                        .font(.system(size: 16))
                 }
-            } label: {
-                Image(systemName: "list.bullet")
-                    .font(.system(size: 14))
+                .buttonStyle(.plain)
+
+                Button {
+                    player.togglePlayPause()
+                    HapticManager.play(.playPause)
+                } label: {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 24, weight: .medium))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    player.nextChapter()
+                    HapticManager.play(.navigation)
+                } label: {
+                    Image(systemName: "forward.end.fill")
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+
+            // Shuffle, repeat, tracklist, queue
+            HStack(spacing: 16) {
+                Button {
+                    player.toggleShuffle()
+                    HapticManager.play(.selection)
+                } label: {
+                    Image(systemName: "shuffle")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(player.shuffleEnabled ? player.artworkAccentColor : Color.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    player.cycleRepeatMode()
+                    HapticManager.play(.selection)
+                } label: {
+                    Image(systemName: player.repeatMode == .repeatOne ? "repeat.1" : "repeat")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(player.repeatMode != .off ? player.artworkAccentColor : Color.secondary)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        showTracklist = true
+                    }
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        showQueue = true
+                    }
+                } label: {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                            .font(.system(size: 12))
+                        if !player.queue.isEmpty {
+                            Text("\(player.queue.count)")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 2)
+                                .background(Capsule().fill(player.artworkAccentColor))
+                                .offset(x: 6, y: -4)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20)
         }
     }
 
