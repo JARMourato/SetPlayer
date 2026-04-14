@@ -271,7 +271,6 @@ struct ImmersiveVideoView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .allowsHitTesting(false)
             )
         }
         .transition(.opacity)

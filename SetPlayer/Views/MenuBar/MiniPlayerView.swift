@@ -37,24 +37,10 @@ struct MiniPlayerView: View {
 
     private func playerView(item: JellyfinItem) -> some View {
         VStack(spacing: 0) {
-            // Video preview (swipe left/right to skip tracks)
+            // Video preview
             AVPlayerViewRepresentable(player: player.player)
                 .frame(width: 280, height: 280 / videoAspectRatio)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                .gesture(
-                    DragGesture(minimumDistance: 50)
-                        .onEnded { value in
-                            let h = value.translation.width
-                            guard abs(h) > abs(value.translation.height) * 1.5 else { return }
-                            if h < -50 {
-                                player.nextChapter()
-                                HapticManager.play(.navigation)
-                            } else if h > 50 {
-                                player.previousChapter()
-                                HapticManager.play(.navigation)
-                            }
-                        }
-                )
                 .padding(.horizontal, 10)
                 .padding(.top, 10)
 
