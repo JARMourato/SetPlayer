@@ -184,11 +184,12 @@ struct LibraryView: View {
                 return viewModel.filteredItems
             }
         }()
+        let trackResults = viewModel.trackSearchResults
 
         if viewModel.isLoading {
             ProgressView("Loading...")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if displayItems.isEmpty {
+        } else if displayItems.isEmpty && trackResults.isEmpty {
             if viewModel.searchText.isEmpty {
                 ContentUnavailableView("No Sets Found", systemImage: "music.mic",
                                        description: Text("Your library appears to be empty"))
@@ -204,53 +205,110 @@ struct LibraryView: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 16)
 
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 180, maximum: 220), spacing: 20)],
-                        spacing: 24
-                    ) {
-                        ForEach(displayItems) { item in
-                            SetGridItem(item: item, isSelected: selectedItem?.id == item.id)
-                                .draggable(item.id)
-                                .onTapGesture(count: 2) {
-                                    selectedItem = item
-                                    if let url = jellyfin.streamURL(for: item.id) {
-                                        player.play(item: item, streamURL: url)
-                                    }
-                                }
-                                .onTapGesture {
-                                    selectedItem = item
-                                    showingDetail = true
-                                }
-                                .contextMenu {
-                                    Button("Play") {
-                                        if let url = jellyfin.streamURL(for: item.id) {
-                                            player.play(item: item, streamURL: url)
-                                        }
-                                    }
-                                    Divider()
-                                    Button("Play Next") {
-                                        if let url = jellyfin.streamURL(for: item.id) {
-                                            let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
-                                            player.playNext(item, streamURL: url, imageURL: imageURL)
-                                            HapticManager.play(.selection)
-                                        }
-                                    }
-                                    Button("Add to Queue") {
-                                        if let url = jellyfin.streamURL(for: item.id) {
-                                            let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
-                                            player.addToQueue(item, streamURL: url, imageURL: imageURL)
-                                            HapticManager.play(.selection)
-                                        }
-                                    }
-                                }
-                        }
+                    if !trackResults.isEmpty {
+                        tracksSection(trackResults)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+
+                    if !displayItems.isEmpty {
+                        if !trackResults.isEmpty {
+                            sectionHeader("Sets", count: displayItems.count)
+                        }
+                        setsGrid(displayItems)
+                    }
                 }
             }
             .background(Color(nsColor: .windowBackgroundColor))
         }
+    }
+
+    private func sectionHeader(_ title: String, count: Int) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 16, weight: .bold))
+            Text("\(count)")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.secondary))
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 4)
+    }
+
+    @ViewBuilder
+    private func tracksSection(_ results: [TrackSearchResult]) -> some View {
+        let visible = Array(results.prefix(50))
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader("Tracks", count: results.count)
+                .padding(.bottom, 4)
+
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(visible) { result in
+                    TrackSearchRow(result: result)
+                    if result.id != visible.last?.id {
+                        Divider().padding(.leading, 76)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if results.count > visible.count {
+                Text("+ \(results.count - visible.count) more matches — refine your search")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func setsGrid(_ displayItems: [JellyfinItem]) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 180, maximum: 220), spacing: 20)],
+            spacing: 24
+        ) {
+            ForEach(displayItems) { item in
+                SetGridItem(item: item, isSelected: selectedItem?.id == item.id)
+                    .draggable(item.id)
+                    .onTapGesture(count: 2) {
+                        selectedItem = item
+                        if let url = jellyfin.streamURL(for: item.id) {
+                            player.play(item: item, streamURL: url)
+                        }
+                    }
+                    .onTapGesture {
+                        selectedItem = item
+                        showingDetail = true
+                    }
+                    .contextMenu {
+                        Button("Play") {
+                            if let url = jellyfin.streamURL(for: item.id) {
+                                player.play(item: item, streamURL: url)
+                            }
+                        }
+                        Divider()
+                        Button("Play Next") {
+                            if let url = jellyfin.streamURL(for: item.id) {
+                                let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
+                                player.playNext(item, streamURL: url, imageURL: imageURL)
+                                HapticManager.play(.selection)
+                            }
+                        }
+                        Button("Add to Queue") {
+                            if let url = jellyfin.streamURL(for: item.id) {
+                                let imageURL = item.imageTags["Primary"].flatMap { jellyfin.imageURL(for: item.id, tag: $0, maxWidth: 80) }
+                                player.addToQueue(item, streamURL: url, imageURL: imageURL)
+                                HapticManager.play(.selection)
+                            }
+                        }
+                    }
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
     }
 
     private var navigationTitle: String {
@@ -547,4 +605,90 @@ enum SidebarItem: Hashable {
     case mostPlayed
     case collection(String)
     case artist(String)
+}
+
+// MARK: - Track Search Row
+
+struct TrackSearchRow: View {
+    let result: TrackSearchResult
+
+    @Environment(JellyfinService.self) private var jellyfin
+    @Environment(PlayerManager.self) private var player
+
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            artwork
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(result.chapter.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(isCurrent ? Color.accentColor : .primary)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    Text(result.item.artist)
+                        .lineLimit(1)
+                    if !result.item.festival.isEmpty {
+                        Text("·").foregroundStyle(.tertiary)
+                        Text(result.item.festival)
+                            .lineLimit(1)
+                    }
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            Text(result.chapter.startFormatted)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isCurrent ? Color.accentColor.opacity(0.08) : (isHovering ? Color.primary.opacity(0.05) : Color.clear))
+        )
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        .onTapGesture(perform: playFromTrack)
+    }
+
+    private var isCurrent: Bool {
+        player.currentItem?.id == result.item.id
+            && player.currentChapterIndex == result.chapterIndex
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
+        if let tag = result.item.imageTags["Primary"],
+           let url = jellyfin.imageURL(for: result.item.id, tag: tag, maxWidth: 80) {
+            AsyncImage(url: url) { image in
+                image.resizable().aspectRatio(contentMode: .fill)
+            } placeholder: {
+                Color(nsColor: .controlBackgroundColor)
+            }
+        } else {
+            ZStack {
+                Color(nsColor: .controlBackgroundColor)
+                Image(systemName: "music.mic")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.quaternary)
+            }
+        }
+    }
+
+    private func playFromTrack() {
+        guard let url = jellyfin.streamURL(for: result.item.id) else { return }
+        if player.currentItem?.id != result.item.id {
+            player.play(item: result.item, streamURL: url)
+        }
+        player.seekToChapter(at: result.chapterIndex)
+        HapticManager.play(.playPause)
+    }
 }

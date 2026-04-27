@@ -10,6 +10,13 @@ enum SortOption: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct TrackSearchResult: Identifiable, Hashable {
+    let id: String
+    let item: JellyfinItem
+    let chapterIndex: Int
+    let chapter: JellyfinChapter
+}
+
 @Observable @MainActor
 final class LibraryViewModel {
     var items: [JellyfinItem] = []
@@ -41,6 +48,26 @@ final class LibraryViewModel {
             }
         }
         return sorted(base)
+    }
+
+    var trackSearchResults: [TrackSearchResult] {
+        guard !searchText.isEmpty else { return [] }
+        let query = searchText.lowercased()
+        var results: [TrackSearchResult] = []
+        for item in items {
+            for (idx, chapter) in item.chapters.enumerated()
+            where chapter.name.lowercased().contains(query) {
+                results.append(
+                    TrackSearchResult(
+                        id: "\(item.id)#\(idx)",
+                        item: item,
+                        chapterIndex: idx,
+                        chapter: chapter
+                    )
+                )
+            }
+        }
+        return results
     }
 
     var artists: [String] {
