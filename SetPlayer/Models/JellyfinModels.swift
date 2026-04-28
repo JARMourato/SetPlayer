@@ -5,6 +5,10 @@ struct QueueEntry: Identifiable, Codable {
     let item: JellyfinItem
     let streamURL: URL
     let imageURL: URL?
+
+    private enum CodingKeys: String, CodingKey {
+        case item, streamURL, imageURL
+    }
 }
 
 struct JellyfinItem: Identifiable, Hashable, Codable {
@@ -38,6 +42,10 @@ struct JellyfinChapter: Identifiable, Hashable, Codable {
     let startTicks: Int64
     let name: String
     let imageTag: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case startTicks, name, imageTag
+    }
 
     var startSeconds: Double {
         Double(startTicks) / 10_000_000
