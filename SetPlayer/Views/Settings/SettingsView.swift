@@ -41,7 +41,3 @@ struct SettingsView: View {
         NSApp.setActivationPolicy(hidden ? .accessory : .regular)
     }
 }
-
-func applyDockIconPolicy(hidden: Bool) {
-    SettingsView.applyDockIconPolicy(hidden: hidden)
-}

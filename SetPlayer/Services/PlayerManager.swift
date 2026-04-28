@@ -31,7 +31,7 @@ final class PlayerManager {
 
     private var timeObserver: Any?
     private var statusObservation: NSKeyValueObservation?
-    private var videoSizeObservation: NSKeyValueObservation?
+    private var videoSizeTask: Task<Void, Never>?
     private var endOfPlaybackObserver: NSObjectProtocol?
 
     var currentChapter: JellyfinChapter? {
@@ -107,7 +107,7 @@ final class PlayerManager {
         player.replaceCurrentItem(with: playerItem)
 
         statusObservation?.invalidate()
-        videoSizeObservation?.invalidate()
+        videoSizeTask?.cancel()
 
         statusObservation = playerItem.observe(\.status) { [weak self] observed, _ in
             guard observed.status == .readyToPlay else { return }
@@ -117,16 +117,18 @@ final class PlayerManager {
             }
         }
 
-        videoSizeObservation = playerItem.observe(\.tracks) { [weak self] observed, _ in
-            if let track = observed.tracks.first(where: { $0.assetTrack?.mediaType == .video }),
-               let size = track.assetTrack?.naturalSize,
-               size.width > 0, size.height > 0 {
-                let transform = track.assetTrack?.preferredTransform ?? .identity
+        let asset = playerItem.asset
+        videoSizeTask = Task { [weak self] in
+            do {
+                let videoTracks = try await asset.loadTracks(withMediaType: .video)
+                guard let track = videoTracks.first else { return }
+                let (size, transform) = try await track.load(.naturalSize, .preferredTransform)
+                guard !Task.isCancelled, size.width > 0, size.height > 0 else { return }
                 let transformed = size.applying(transform)
                 let finalSize = CGSize(width: abs(transformed.width), height: abs(transformed.height))
-                Task { @MainActor in
-                    self?.videoSize = finalSize
-                }
+                self?.videoSize = finalSize
+            } catch {
+                // Asset failed to load; leave videoSize unchanged
             }
         }
 
