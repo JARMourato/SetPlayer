@@ -4,3 +4,6 @@ DerivedData/
 .build/
 .swiftpm/
 *.xcworkspace
+
+# Release artifacts
+build/
