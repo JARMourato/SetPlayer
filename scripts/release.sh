@@ -123,11 +123,21 @@ xcrun stapler staple "${APP_PATH}"
 xcrun stapler validate "${APP_PATH}"
 
 step "7/8  Building DMG"
-hdiutil create \
-    -volname "${APP_NAME}" \
-    -srcfolder "${APP_PATH}" \
-    -ov -format UDZO \
-    "${DMG_PATH}"
+# Use attach/copy/convert flow instead of hdiutil -srcfolder, which is flaky
+# on macOS Sequoia when DiskArbitration is busy (e.g. simulators booting/shutting).
+APP_SIZE_MB=$(du -sm "${APP_PATH}" | awk '{print $1}')
+DMG_SIZE_MB=$(( APP_SIZE_MB + 20 ))
+RW_DMG="${BUILD_DIR}/${APP_NAME}-rw.dmg"
+
+hdiutil create -size "${DMG_SIZE_MB}m" -fs HFS+ -volname "${APP_NAME}" -ov "${RW_DMG}"
+MOUNT_POINT="$(hdiutil attach "${RW_DMG}" -nobrowse | tail -1 | awk '{print $NF}')"
+[ -n "${MOUNT_POINT}" ] || fail "Failed to mount writable DMG"
+cp -R "${APP_PATH}" "${MOUNT_POINT}/"
+hdiutil detach "${MOUNT_POINT}" -force
+hdiutil convert "${RW_DMG}" -format UDZO -o "${DMG_PATH}"
+rm -f "${RW_DMG}"
+
+codesign --force --sign "${SIGN_ID}" --timestamp "${DMG_PATH}"
 
 codesign --force --sign "${SIGN_ID}" --timestamp "${DMG_PATH}"
 
