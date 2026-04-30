@@ -24,7 +24,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.jarmourato.SetPlayer
         PRODUCT_NAME: SetPlayer
         INFOPLIST_FILE: SetPlayer/Info.plist
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_APPICON_NAME: SetPlayer
         ENABLE_PREVIEWS: true
     info:
       path: SetPlayer/Info.plist
